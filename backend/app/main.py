@@ -42,7 +42,7 @@ def health_check() -> dict[str, object]:
         client = get_mongo_client()
         client.admin.command('ping')
         default_database = client.get_default_database()
-        database_name = default_database.name if default_database else None
+        database_name = default_database.name if default_database is not None else None
         database_status = 'connected'
     except (PyMongoError, RuntimeError):
         database_status = 'disconnected'

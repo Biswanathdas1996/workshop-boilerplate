@@ -43,48 +43,21 @@ function App() {
     void loadHealth()
   }, [])
 
-  const items = [
-    { label: 'Frontend', value: health.frontend },
-    { label: 'Backend', value: health.backend },
-    { label: 'Database', value: health.database },
-  ]
-
   return (
-    <main className="shell">
-      <section className="hero">
-        <p className="eyebrow">Boilerplate App</p>
-        <h1>Full-stack starter with a live status screen.</h1>
-        <p className="lede">
-          React on the front, Python on the back, and MongoDB wired through a simple health check.
-        </p>
-      </section>
+    <main className="page">
+      <h1>Boilerplate</h1>
+      <p>Greenfield dev starter page.</p>
 
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>System Status</h2>
-            <p>
-              {status === 'loading' && 'Checking services...'}
-              {status === 'ready' && 'All services are responding.'}
-              {status === 'error' && 'Frontend loaded, but the API or database check failed.'}
-            </p>
-          </div>
-          <span className={`badge badge-${status}`}>{status}</span>
-        </div>
+      <h2>Health</h2>
+      <p>Status: {status}</p>
 
-        <div className="status-grid">
-          {items.map((item) => (
-            <article key={item.label} className="status-card">
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-            </article>
-          ))}
-        </div>
+      <ul>
+        <li>Frontend: {health.frontend}</li>
+        <li>Backend: {health.backend}</li>
+        <li>Database: {health.database}</li>
+      </ul>
 
-        <div className="footer-note">
-          {health.databaseName ? <span>Connected database: {health.databaseName}</span> : <span>MongoDB URI configured via environment</span>}
-        </div>
-      </section>
+      <p>{health.databaseName ? `DB: ${health.databaseName}` : 'DB: not set'}</p>
     </main>
   )
 }
