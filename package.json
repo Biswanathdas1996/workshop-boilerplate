@@ -1,0 +1,19 @@
+{
+  "name": "parking-management-tests",
+  "version": "1.0.0",
+  "description": "E2E automation tests for Parking Management System",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:report": "playwright show-report"
+  },
+  "keywords": ["playwright", "e2e", "testing", "automation"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^22.0.0"
+  }
+}
