@@ -1,64 +1,67 @@
-import { useEffect, useState } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import Register from './components/Register'
+import Login from './components/Login'
+import Dashboard from './components/Dashboard'
+import VehicleRegistration from './components/VehicleRegistration'
+import ParkingReservation from './components/ParkingReservation'
+import AdminDashboard from './components/AdminDashboard'
 
-type HealthResponse = {
-  frontend: string
-  backend: string
-  database: string
-  databaseName?: string | null
+function PrivateRoute({ children }: { children: JSX.Element }) {
+  const { token } = useAuth()
+  return token ? children : <Navigate to="/login" />
 }
 
-const defaultHealth: HealthResponse = {
-  frontend: 'active',
-  backend: 'connected',
-  database: 'connected',
-  databaseName: null,
+function AdminRoute({ children }: { children: JSX.Element }) {
+  const { token, isAdmin } = useAuth()
+  if (!token) return <Navigate to="/login" />
+  if (!isAdmin) return <Navigate to="/dashboard" />
+  return children
 }
 
 function App() {
-  const [health, setHealth] = useState<HealthResponse>(defaultHealth)
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
-
-  useEffect(() => {
-    const loadHealth = async () => {
-      try {
-        const response = await fetch('/api/health')
-        if (!response.ok) {
-          throw new Error('Health request failed')
-        }
-
-        const data = (await response.json()) as HealthResponse
-        setHealth({ ...defaultHealth, ...data })
-        setStatus('ready')
-      } catch {
-        setHealth({
-          frontend: 'active',
-          backend: 'disconnected',
-          database: 'disconnected',
-          databaseName: null,
-        })
-        setStatus('error')
-      }
-    }
-
-    void loadHealth()
-  }, [])
-
   return (
-    <main className="page">
-      <h1>Boilerplate</h1>
-      <p>Greenfield dev starter page.</p>
-
-      <h2>Health</h2>
-      <p>Status: {status}</p>
-
-      <ul>
-        <li>Frontend: {health.frontend}</li>
-        <li>Backend: {health.backend}</li>
-        <li>Database: {health.database}</li>
-      </ul>
-
-      <p>{health.databaseName ? `DB: ${health.databaseName}` : 'DB: not set'}</p>
-    </main>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Navigate to="/login" />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/dashboard"
+            element={
+              <PrivateRoute>
+                <Dashboard />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/vehicles"
+            element={
+              <PrivateRoute>
+                <VehicleRegistration />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/reservations"
+            element={
+              <PrivateRoute>
+                <ParkingReservation />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <AdminDashboard />
+              </AdminRoute>
+            }
+          />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   )
 }
 
