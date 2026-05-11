@@ -1,7 +1,10 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from enum import Enum
+
+
+BCRYPT_MAX_PASSWORD_BYTES = 72
 
 
 class UserRole(str, Enum):
@@ -15,10 +18,24 @@ class UserRegister(BaseModel):
     full_name: str
     phone: Optional[str] = None
 
+    @field_validator('password')
+    @classmethod
+    def validate_password_byte_length(cls, value: str) -> str:
+        if len(value.encode('utf-8')) > BCRYPT_MAX_PASSWORD_BYTES:
+            raise ValueError('Password is too long for bcrypt (max 72 bytes).')
+        return value
+
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+    @field_validator('password')
+    @classmethod
+    def validate_password_byte_length(cls, value: str) -> str:
+        if len(value.encode('utf-8')) > BCRYPT_MAX_PASSWORD_BYTES:
+            raise ValueError('Password is too long for bcrypt (max 72 bytes).')
+        return value
 
 
 class UserResponse(BaseModel):
