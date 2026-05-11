@@ -17,7 +17,11 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except ValueError:
+        # Treat invalid/unsupported password inputs as non-matching credentials.
+        return False
 
 
 def get_password_hash(password: str) -> str:
