@@ -18,6 +18,8 @@ function App() {
   const [health, setHealth] = useState<HealthResponse>(defaultHealth)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
 
+  const statusLabel = status === 'ready' ? 'Operational' : status === 'loading' ? 'Checking' : 'Attention'
+
   useEffect(() => {
     const loadHealth = async () => {
       try {
@@ -45,19 +47,37 @@ function App() {
 
   return (
     <main className="page">
-      <h1>Boilerplate</h1>
-      <p>Greenfield dev starter page.</p>
+      <section className="hero">
+        <p className="eyebrow">Starter Environment</p>
+        <h1>Boilerplate Dashboard</h1>
+        <p className="subtitle">React frontend, Python backend, and database wiring at a glance.</p>
+      </section>
 
-      <h2>Health</h2>
-      <p>Status: {status}</p>
+      <section className="panel">
+        <div className="panel-head">
+          <h2>System Health</h2>
+          <span className={`status-badge status-${status}`}>{statusLabel}</span>
+        </div>
 
-      <ul>
-        <li>Frontend: {health.frontend}</li>
-        <li>Backend: {health.backend}</li>
-        <li>Database: {health.database}</li>
-      </ul>
+        <div className="health-grid">
+          <article className="health-card">
+            <p className="label">Frontend</p>
+            <p className="value">{health.frontend}</p>
+          </article>
 
-      <p>{health.databaseName ? `DB: ${health.databaseName}` : 'DB: not set'}</p>
+          <article className="health-card">
+            <p className="label">Backend</p>
+            <p className="value">{health.backend}</p>
+          </article>
+
+          <article className="health-card">
+            <p className="label">Database</p>
+            <p className="value">{health.database}</p>
+          </article>
+        </div>
+
+        <p className="db-meta">{health.databaseName ? `Connected DB: ${health.databaseName}` : 'Connected DB: not set'}</p>
+      </section>
     </main>
   )
 }
