@@ -8,8 +8,11 @@ from bson import ObjectId
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pymongo import MongoClient
-from pymongo.errors import PyMongoError, DuplicateKeyError
+from pymongo.errors import DuplicateKeyError, PyMongoError
+from pymongo.read_preferences import ReadPreference
+from starlette.requests import Request
 
 from app.auth import (
     get_password_hash,
@@ -17,6 +20,7 @@ from app.auth import (
     create_access_token,
     get_current_user_id,
 )
+from app.parking_seed import effective_floor
 from app.models import (
     UserCreate,
     UserLogin,
@@ -44,13 +48,42 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
+MONGO_UNAVAILABLE_MSG = (
+    'Database unavailable. Check MongoDB Atlas: Network Access must allow your current IP, '
+    'the cluster must be running (not paused), and your connection string must be correct. '
+    'If one replica is slow, try again or use a VPN-friendly network.'
+)
+
+
+@app.exception_handler(DuplicateKeyError)
+async def duplicate_key_handler(_request: Request, _exc: DuplicateKeyError) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={'detail': 'A record with this unique value already exists.'},
+    )
+
+
+@app.exception_handler(PyMongoError)
+async def pymongo_error_handler(_request: Request, _exc: PyMongoError) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={'detail': MONGO_UNAVAILABLE_MSG},
+    )
+
 
 @lru_cache(maxsize=1)
 def get_mongo_client() -> MongoClient:
     mongodb_uri = os.getenv('MONGODB_URI')
     if not mongodb_uri:
         raise RuntimeError('MONGODB_URI is not configured.')
-    return MongoClient(mongodb_uri, serverSelectionTimeoutMS=3000)
+    # Longer timeouts for Atlas over residential/Wi‑Fi; reads can use healthy secondaries if primary is flaky.
+    return MongoClient(
+        mongodb_uri,
+        serverSelectionTimeoutMS=20_000,
+        connectTimeoutMS=20_000,
+        socketTimeoutMS=45_000,
+        read_preference=ReadPreference.SECONDARY_PREFERRED,
+    )
 
 
 def get_database():
@@ -66,22 +99,6 @@ async def startup_event():
         db.vehicles.create_index('user_id')
         db.parking_spots.create_index('spot_number', unique=True)
         db.reservations.create_index([('user_id', 1), ('start_time', 1)])
-
-        existing_spots = db.parking_spots.count_documents({})
-        if existing_spots == 0:
-            spots = []
-            for floor in range(1, 4):
-                for spot_num in range(1, 21):
-                    spots.append({
-                        '_id': ObjectId(),
-                        'spot_number': f'{floor}{spot_num:02d}',
-                        'floor': floor,
-                        'is_occupied': False,
-                        'reserved': False,
-                        'last_updated': datetime.utcnow(),
-                    })
-            if spots:
-                db.parking_spots.insert_many(spots)
     except Exception:
         pass
 
@@ -239,6 +256,40 @@ def get_user_vehicles(user_id: str = Depends(get_current_user_id)):
     ]
 
 
+@app.delete('/api/vehicles/{vehicle_id}', status_code=status.HTTP_204_NO_CONTENT)
+def delete_vehicle(vehicle_id: str, user_id: str = Depends(get_current_user_id)):
+    db = get_database()
+
+    try:
+        oid = ObjectId(vehicle_id)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Invalid vehicle id',
+        )
+
+    vehicle = db.vehicles.find_one({'_id': oid, 'user_id': user_id})
+    if not vehicle:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Vehicle not found',
+        )
+
+    active_reservation = db.reservations.find_one({
+        'user_id': user_id,
+        'vehicle_id': vehicle_id,
+        'status': 'active',
+    })
+    if active_reservation:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Cancel active reservations that use this vehicle before deleting it.',
+        )
+
+    db.vehicles.delete_one({'_id': oid, 'user_id': user_id})
+    return None
+
+
 @app.get('/api/parking-spots', response_model=List[ParkingSpot])
 def get_parking_spots():
     db = get_database()
@@ -248,11 +299,11 @@ def get_parking_spots():
     return [
         ParkingSpot(
             id=str(spot['_id']),
-            spot_number=spot['spot_number'],
-            floor=spot['floor'],
-            is_occupied=spot['is_occupied'],
-            reserved=spot['reserved'],
-            last_updated=spot['last_updated'],
+            spot_number=str(spot.get('spot_number', '')),
+            floor=effective_floor(spot),
+            is_occupied=bool(spot.get('is_occupied')),
+            reserved=bool(spot.get('reserved')),
+            last_updated=spot.get('last_updated') or datetime.utcnow(),
         )
         for spot in spots
     ]
@@ -267,21 +318,31 @@ def get_occupancy_stats():
     reserved_spots = db.parking_spots.count_documents({'reserved': True})
     available_spots = total_spots - occupied_spots - reserved_spots
 
+    spot_rows = list(db.parking_spots.find({}, ['floor', 'spot_number', 'is_occupied', 'reserved']))
+    floor_buckets: dict[int, dict[str, int]] = {}
+    for s in spot_rows:
+        fl = effective_floor(s)
+        b = floor_buckets.setdefault(fl, {'total': 0, 'occupied': 0, 'reserved': 0})
+        b['total'] += 1
+        if s.get('is_occupied'):
+            b['occupied'] += 1
+        if s.get('reserved'):
+            b['reserved'] += 1
     occupancy_by_floor = []
-    for floor in range(1, 4):
-        floor_total = db.parking_spots.count_documents({'floor': floor})
-        floor_occupied = db.parking_spots.count_documents({'floor': floor, 'is_occupied': True})
-        floor_reserved = db.parking_spots.count_documents({'floor': floor, 'reserved': True})
-        floor_available = floor_total - floor_occupied - floor_reserved
-
+    for floor in sorted(floor_buckets.keys()):
+        st = floor_buckets[floor]
+        floor_available = st['total'] - st['occupied'] - st['reserved']
         occupancy_by_floor.append({
             'floor': floor,
-            'total': floor_total,
-            'occupied': floor_occupied,
-            'reserved': floor_reserved,
+            'total': st['total'],
+            'occupied': st['occupied'],
+            'reserved': st['reserved'],
             'available': floor_available,
-            'occupancy_rate': round((floor_occupied / floor_total * 100) if floor_total > 0 else 0, 1),
+            'occupancy_rate': round((st['occupied'] / st['total'] * 100) if st['total'] > 0 else 0, 1),
         })
+
+    recent = db.parking_spots.find_one(sort=[('last_updated', -1)], projection=['last_updated'])
+    last_updated = recent['last_updated'] if recent and recent.get('last_updated') else datetime.utcnow()
 
     return {
         'total_spots': total_spots,
@@ -290,7 +351,7 @@ def get_occupancy_stats():
         'available': available_spots,
         'occupancy_rate': round((occupied_spots / total_spots * 100) if total_spots > 0 else 0, 1),
         'by_floor': occupancy_by_floor,
-        'last_updated': datetime.utcnow(),
+        'last_updated': last_updated,
     }
 
 
@@ -312,7 +373,7 @@ def create_reservation(reservation: ReservationCreate, user_id: str = Depends(ge
             detail='Parking spot not found',
         )
 
-    if spot['is_occupied'] or spot['reserved']:
+    if spot.get('is_occupied') or spot.get('reserved'):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='Parking spot is not available',
@@ -359,6 +420,8 @@ def create_reservation(reservation: ReservationCreate, user_id: str = Depends(ge
         end_time=reservation_doc['end_time'],
         status=reservation_doc['status'],
         created_at=reservation_doc['created_at'],
+        spot_number=spot.get('spot_number'),
+        vehicle_plate=vehicle.get('license_plate'),
     )
 
 
@@ -367,20 +430,48 @@ def get_user_reservations(user_id: str = Depends(get_current_user_id)):
     db = get_database()
 
     reservations = list(db.reservations.find({'user_id': user_id}).sort('created_at', -1))
+    if not reservations:
+        return []
 
-    return [
-        ReservationResponse(
-            id=str(r['_id']),
-            user_id=r['user_id'],
-            spot_id=r['spot_id'],
-            vehicle_id=r['vehicle_id'],
-            start_time=r['start_time'],
-            end_time=r['end_time'],
-            status=r['status'],
-            created_at=r['created_at'],
+    spot_oids: list[ObjectId] = []
+    vehicle_oids: list[ObjectId] = []
+    for r in reservations:
+        try:
+            spot_oids.append(ObjectId(str(r['spot_id'])))
+            vehicle_oids.append(ObjectId(str(r['vehicle_id'])))
+        except Exception:
+            continue
+
+    spots = {
+        str(s['_id']): s
+        for s in db.parking_spots.find({'_id': {'$in': spot_oids}})
+    } if spot_oids else {}
+    vehicles = {
+        str(v['_id']): v
+        for v in db.vehicles.find({'_id': {'$in': vehicle_oids}})
+    } if vehicle_oids else {}
+
+    result: list[ReservationResponse] = []
+    for r in reservations:
+        sid = str(r['spot_id'])
+        vid = str(r['vehicle_id'])
+        spot = spots.get(sid)
+        veh = vehicles.get(vid)
+        result.append(
+            ReservationResponse(
+                id=str(r['_id']),
+                user_id=r['user_id'],
+                spot_id=sid,
+                vehicle_id=vid,
+                start_time=r['start_time'],
+                end_time=r['end_time'],
+                status=r['status'],
+                created_at=r['created_at'],
+                spot_number=spot.get('spot_number') if spot else None,
+                vehicle_plate=veh.get('license_plate') if veh else None,
+            )
         )
-        for r in reservations
-    ]
+    return result
 
 
 @app.delete('/api/reservations/{reservation_id}', status_code=status.HTTP_204_NO_CONTENT)

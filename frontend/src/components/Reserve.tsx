@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 
 type Vehicle = {
@@ -61,6 +61,20 @@ export default function Reserve() {
     void fetchData()
   }, [navigate])
 
+  const floors = useMemo(() => {
+    const set = new Set<number>()
+    for (const sp of spots) {
+      if (typeof sp.floor === 'number') set.add(sp.floor)
+    }
+    return [...set].sort((a, b) => a - b)
+  }, [spots])
+
+  useEffect(() => {
+    if (selectedFloor !== 'all' && !floors.includes(selectedFloor)) {
+      setSelectedFloor('all')
+    }
+  }, [floors, selectedFloor])
+
   const availableSpots = spots.filter(
     (spot) => !spot.is_occupied && !spot.reserved &&
     (selectedFloor === 'all' || spot.floor === selectedFloor)
@@ -121,16 +135,9 @@ export default function Reserve() {
   return (
     <main className="page">
       <section className="hero">
-        <div className="hero-header">
-          <div>
-            <p className="eyebrow">Book a Spot</p>
-            <h1>Reserve Parking</h1>
-            <p className="subtitle">Select a spot and reserve it in advance</p>
-          </div>
-          <Link to="/dashboard" className="btn btn-secondary">
-            Back to Dashboard
-          </Link>
-        </div>
+        <p className="eyebrow">Book a Spot</p>
+        <h1>Reserve Parking</h1>
+        <p className="subtitle">Select a spot and reserve it in advance</p>
       </section>
 
       <section className="panel">
@@ -172,7 +179,7 @@ export default function Reserve() {
                   >
                     All
                   </button>
-                  {[1, 2, 3].map((floor) => (
+                  {floors.map((floor) => (
                     <button
                       key={floor}
                       type="button"

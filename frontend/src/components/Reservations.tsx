@@ -9,6 +9,8 @@ type Reservation = {
   end_time: string
   status: string
   created_at: string
+  spot_number?: string | null
+  vehicle_plate?: string | null
 }
 
 export default function Reservations() {
@@ -89,10 +91,7 @@ export default function Reservations() {
           </div>
           <div className="hero-actions">
             <Link to="/reserve" className="btn btn-primary">
-              New Reservation
-            </Link>
-            <Link to="/dashboard" className="btn btn-secondary">
-              Dashboard
+              New reservation
             </Link>
           </div>
         </div>
@@ -113,12 +112,22 @@ export default function Reservations() {
             {reservations.map((reservation) => (
               <div key={reservation.id} className="reservation-card">
                 <div className="reservation-header">
-                  <h3>Spot {reservation.spot_id}</h3>
+                  <h3>
+                    {reservation.spot_number
+                      ? `Spot ${reservation.spot_number}`
+                      : `Spot (${reservation.spot_id})`}
+                  </h3>
                   <span className={`status-badge status-${reservation.status}`}>
                     {reservation.status}
                   </span>
                 </div>
                 <div className="reservation-details">
+                  <div className="detail-row">
+                    <span className="detail-label">Vehicle:</span>
+                    <span className="detail-value">
+                      {reservation.vehicle_plate ?? reservation.vehicle_id}
+                    </span>
+                  </div>
                   <div className="detail-row">
                     <span className="detail-label">Start:</span>
                     <span className="detail-value">{formatDateTime(reservation.start_time)}</span>

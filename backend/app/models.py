@@ -68,3 +68,5 @@ class ReservationResponse(BaseModel):
     end_time: datetime
     status: str
     created_at: datetime
+    spot_number: Optional[str] = None
+    vehicle_plate: Optional[str] = None

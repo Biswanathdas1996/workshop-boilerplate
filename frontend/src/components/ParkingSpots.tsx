@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 type ParkingSpot = {
   id: string
@@ -48,6 +48,20 @@ export default function ParkingSpots() {
     return () => clearInterval(interval)
   }, [navigate])
 
+  const floors = useMemo(() => {
+    const set = new Set<number>()
+    for (const sp of spots) {
+      if (typeof sp.floor === 'number') set.add(sp.floor)
+    }
+    return [...set].sort((a, b) => a - b)
+  }, [spots])
+
+  useEffect(() => {
+    if (selectedFloor !== 'all' && !floors.includes(selectedFloor)) {
+      setSelectedFloor('all')
+    }
+  }, [floors, selectedFloor])
+
   const filteredSpots = selectedFloor === 'all'
     ? spots
     : spots.filter((spot) => spot.floor === selectedFloor)
@@ -77,16 +91,9 @@ export default function ParkingSpots() {
   return (
     <main className="page">
       <section className="hero">
-        <div className="hero-header">
-          <div>
-            <p className="eyebrow">Real-time Availability</p>
-            <h1>Parking Spots</h1>
-            <p className="subtitle">View live parking spot availability</p>
-          </div>
-          <Link to="/dashboard" className="btn btn-secondary">
-            Back to Dashboard
-          </Link>
-        </div>
+        <p className="eyebrow">Real-time Availability</p>
+        <h1>Parking Spots</h1>
+        <p className="subtitle">View live parking spot availability</p>
       </section>
 
       <section className="panel">
@@ -99,7 +106,7 @@ export default function ParkingSpots() {
             >
               All Floors
             </button>
-            {[1, 2, 3].map((floor) => (
+            {floors.map((floor) => (
               <button
                 key={floor}
                 onClick={() => setSelectedFloor(floor)}

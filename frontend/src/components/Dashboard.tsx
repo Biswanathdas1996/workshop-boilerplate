@@ -74,11 +74,6 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [navigate])
 
-  const handleLogout = () => {
-    localStorage.removeItem('token')
-    navigate('/login')
-  }
-
   if (loading) {
     return (
       <main className="page">
@@ -92,16 +87,9 @@ export default function Dashboard() {
   return (
     <main className="page">
       <section className="hero">
-        <div className="hero-header">
-          <div>
-            <p className="eyebrow">Welcome, {user?.name}</p>
-            <h1>Parking Dashboard</h1>
-            <p className="subtitle">Manage your vehicles and parking reservations</p>
-          </div>
-          <button onClick={handleLogout} className="btn btn-secondary">
-            Logout
-          </button>
-        </div>
+        <p className="eyebrow">Welcome, {user?.name}</p>
+        <h1>Parking Dashboard</h1>
+        <p className="subtitle">Manage your vehicles and parking reservations</p>
       </section>
 
       <section className="panel">

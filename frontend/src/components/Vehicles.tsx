@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 type Vehicle = {
   id: string
@@ -20,6 +20,7 @@ export default function Vehicles() {
     color: '',
   })
   const [error, setError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -80,32 +81,73 @@ export default function Vehicles() {
     }
   }
 
+  const handleDelete = async (vehicle: Vehicle) => {
+    if (!confirm(`Remove ${vehicle.license_plate} from your account?`)) {
+      return
+    }
+
+    const token = localStorage.getItem('token')
+    setError(null)
+    setDeletingId(vehicle.id)
+
+    try {
+      const response = await fetch(`/api/vehicles/${vehicle.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        const detail = data.detail
+        const message =
+          typeof detail === 'string'
+            ? detail
+            : Array.isArray(detail)
+              ? detail.map((x: unknown) => (typeof x === 'object' && x && 'msg' in x ? String((x as { msg: string }).msg) : String(x))).join(' ')
+              : 'Could not delete vehicle'
+        throw new Error(message)
+      }
+
+      setVehicles((prev) => prev.filter((v) => v.id !== vehicle.id))
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Could not delete vehicle'
+      setError(message)
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   return (
     <main className="page">
       <section className="hero">
-        <div className="hero-header">
-          <div>
-            <p className="eyebrow">Vehicle Management</p>
-            <h1>My Vehicles</h1>
-            <p className="subtitle">Register and manage your vehicles</p>
-          </div>
-          <Link to="/dashboard" className="btn btn-secondary">
-            Back to Dashboard
-          </Link>
-        </div>
+        <p className="eyebrow">Vehicle Management</p>
+        <h1>My Vehicles</h1>
+        <p className="subtitle">Register and manage your vehicles</p>
       </section>
 
       <section className="panel">
         <div className="panel-head">
           <h2>Registered Vehicles</h2>
-          <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
+          <button
+            type="button"
+            onClick={() => {
+              setShowForm(!showForm)
+              setError(null)
+            }}
+            className="btn btn-primary"
+          >
             {showForm ? 'Cancel' : 'Add Vehicle'}
           </button>
         </div>
 
+        {error && (
+          <div className="error-message" role="alert">
+            {error}
+          </div>
+        )}
+
         {showForm && (
           <form onSubmit={handleSubmit} className="form-container">
-            {error && <div className="error-message">{error}</div>}
 
             <div className="form-group">
               <label htmlFor="license_plate">License Plate</label>
@@ -174,6 +216,16 @@ export default function Vehicles() {
                     {vehicle.make} {vehicle.model}
                   </p>
                   {vehicle.color && <p className="vehicle-color">{vehicle.color}</p>}
+                </div>
+                <div className="vehicle-card-actions">
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    disabled={deletingId === vehicle.id}
+                    onClick={() => void handleDelete(vehicle)}
+                  >
+                    {deletingId === vehicle.id ? 'Removing…' : 'Remove vehicle'}
+                  </button>
                 </div>
               </div>
             ))
