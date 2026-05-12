@@ -152,7 +152,7 @@ def login_user(credentials: UserLogin):
     db = get_database()
 
     user = db.users.find_one({'email': credentials.email})
-    if not user or not verify_password(credentials.password, user['hashed_password']):
+    if not user or 'hashed_password' not in user or not verify_password(credentials.password, user['hashed_password']):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail='Invalid email or password',
