@@ -1,10 +1,10 @@
-Feature ID,Feature Name,Description,Priority,Category,,
-F001,User Registration,Allow users to create accounts with email and password,High,User Management,,
-F002,User Login,Authenticate users with credentials,High,User Management,,
-F003,Vehicle Registration,Users can register their vehicles with license plate and details,High,Vehicle Management,,
-F004,Parking Spot Availability,Display real-time availability of parking spots,High,Core Functionality,,
-F005,Real-time Occupancy Monitoring,Monitor and track parking space occupancy in real-time,High,Core Functionality,,
-F006,Parking Reservation,Allow users to reserve parking spots in advance,High,Core Functionality,,
+Feature ID,Feature Name,Description,Priority,Category,Status,JIRA
+F001,User Registration,Allow users to create accounts with email and password,High,User Management,Implemented,KAN-435
+F002,User Login,Authenticate users with credentials,High,User Management,Implemented,KAN-436
+F003,Vehicle Registration,Users can register their vehicles with license plate and details,High,Vehicle Management,Implemented,KAN-437
+F004,Parking Spot Availability,Display real-time availability of parking spots,High,Core Functionality,Implemented,KAN-438
+F005,Real-time Occupancy Monitoring,Monitor and track parking space occupancy in real-time,High,Core Functionality,Implemented,KAN-439
+F006,Parking Reservation,Allow users to reserve parking spots in advance,High,Core Functionality,Implemented,KAN-440
 F007,Payment Processing,Process parking payments via multiple payment methods,High,Payment,,
 F009,Admin Dashboard,Dashboard for administrators to manage parking operations,High,Administration,,
 F010,Reporting and Analytics,Generate reports on occupancy, revenue, and usage patterns,Medium,Analytics
